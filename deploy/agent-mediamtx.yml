@@ -1,0 +1,22 @@
+logLevel: info
+
+authMethod: internal
+
+rtsp: true
+rtspAddress: 127.0.0.1:8555
+rtspTransports: [tcp]
+
+hls: false
+
+webrtc: true
+webrtcAddress: 127.0.0.1:8890
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+
+api: false
+rtmp: false
+srt: false
+moq: false
+
+paths:
+  all_others:

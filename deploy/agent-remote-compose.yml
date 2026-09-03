@@ -1,0 +1,48 @@
+services:
+  agent:
+    image: ghcr.io/razer97427/cloudnvr-agent:latest
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - agent-media
+    environment:
+      CLOUD_URL: ${CLOUD_URL}
+      SITE_ID: ${SITE_ID}
+      ENROLLMENT_TOKEN: ${ENROLLMENT_TOKEN:-}
+      AGENT_NAME: ${AGENT_NAME:-site-agent}
+      AGENT_POLL_INTERVAL: ${AGENT_POLL_INTERVAL:-15s}
+      AGENT_INVENTORY_INTERVAL: ${AGENT_INVENTORY_INTERVAL:-1m}
+      AGENT_FULL_INVENTORY_INTERVAL: ${AGENT_FULL_INVENTORY_INTERVAL:-6h}
+      AGENT_UPLOAD_MBPS: ${AGENT_UPLOAD_MBPS:-8}
+      AGENT_UPLOAD_RETRIES: ${AGENT_UPLOAD_RETRIES:-4}
+      AGENT_MIN_FREE_BYTES: ${AGENT_MIN_FREE_BYTES:-2147483648}
+      AGENT_ALLOW_INSECURE_HTTP: ${AGENT_ALLOW_INSECURE_HTTP:-false}
+      AGENT_WEBRTC_ENABLED: ${AGENT_WEBRTC_ENABLED:-true}
+      AGENT_MEDIA_RTSP_URL: rtsp://127.0.0.1:8555
+      AGENT_MEDIA_WEBRTC_URL: http://127.0.0.1:8890
+      AGENT_WEBRTC_WORKERS: ${AGENT_WEBRTC_WORKERS:-4}
+      AGENT_STATE_FILE: /var/lib/cloudnvr/agent.json
+      AGENT_CONFIG_CACHE_FILE: /var/lib/cloudnvr/config.json
+      AGENT_INVENTORY_STATE_FILE: /var/lib/cloudnvr/inventory.json
+      AGENT_STORAGE_ID_FILE: /var/lib/cloudnvr/storage.id
+      RECORDINGS_PATH: /var/lib/cloudnvr/recordings
+      RECORDING_SEGMENT_TIME: ${RECORDING_SEGMENT_TIME:-1m}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - agent-state:/var/lib/cloudnvr
+      - ${AGENT_RECORDINGS_PATH:-agent-recordings}:/var/lib/cloudnvr/recordings
+
+  agent-media:
+    image: bluenviron/mediamtx:1.20.1
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${AGENT_WEBRTC_HOSTS:-}
+      MTX_WEBRTCLOCALUDPADDRESS: :${AGENT_WEBRTC_PORT:-8189}
+      MTX_WEBRTCLOCALTCPADDRESS: :${AGENT_WEBRTC_PORT:-8189}
+    volumes:
+      - ./agent-mediamtx.yml:/mediamtx.yml:ro
+
+volumes:
+  agent-state:
+  agent-recordings:

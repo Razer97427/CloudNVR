@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+          cache: true
+      - run: go test ./...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - name: Validate Compose files
+        env:
+          MARIADB_PASSWORD: test-password
+          MARIADB_ROOT_PASSWORD: test-root-password
+          ADMIN_API_KEY: test-admin-key
+          CAMERA_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+          CLOUD_URL: https://cloudnvr.example.com
+          SITE_ID: 00000000-0000-0000-0000-000000000000
+        run: |
+          docker compose config --quiet
+          docker compose -f deploy/agent-compose.yml config --quiet
+          docker compose -f deploy/agent-only/docker-compose.yml config --quiet

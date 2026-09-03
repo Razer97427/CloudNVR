@@ -1,0 +1,90 @@
+services:
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-cloudnvr}
+      MARIADB_USER: ${MARIADB_USER:-cloudnvr}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  cloud:
+    image: ghcr.io/razer97427/cloudnvr-cloud:latest
+    build:
+      context: .
+      target: cloud
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    environment:
+      HTTP_ADDR: :8080
+      DATABASE_DSN: ${MARIADB_USER:-cloudnvr}:${MARIADB_PASSWORD}@tcp(mariadb:3306)/${MARIADB_DATABASE:-cloudnvr}?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      CAMERA_ENCRYPTION_KEY: ${CAMERA_ENCRYPTION_KEY}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      WEB_UPSTREAM: http://web:3000
+      MEDIA_WEBRTC_UPSTREAM: http://mediamtx:8889
+      MEDIA_HLS_UPSTREAM: http://mediamtx:8888
+      MEDIA_API_URL: http://mediamtx:9997
+      MEDIA_INTERNAL_RTSP_URL: rtsp://mediamtx:8554
+      MEDIA_PUBLIC_RTSP_URL: ${MEDIA_PUBLIC_RTSP_URL:-}
+      MEDIA_PUBLISH_USER: ${MEDIA_PUBLISH_USER:-cloudnvr-agent}
+      MEDIA_PUBLISH_PASSWORD: ${MEDIA_PUBLISH_PASSWORD:-change-media-password}
+      RECORDINGS_PATH: /var/lib/cloudnvr/recordings
+      CLOUD_STORAGE_ID_FILE: /var/lib/cloudnvr-state/storage.id
+      RECORDING_SEGMENT_TIME: ${RECORDING_SEGMENT_TIME:-1m}
+      PLAYBACK_CACHE_TTL: ${PLAYBACK_CACHE_TTL:-6h}
+      PLAYBACK_CACHE_MAX_BYTES: ${PLAYBACK_CACHE_MAX_BYTES:-10737418240}
+      AGENT_UPLOAD_MAX_BYTES: ${AGENT_UPLOAD_MAX_BYTES:-2147483648}
+      CLOUD_MIN_FREE_BYTES: ${CLOUD_MIN_FREE_BYTES:-5368709120}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ${CLOUD_RECORDINGS_PATH:-cloud-recordings}:/var/lib/cloudnvr/recordings
+      - cloud-state:/var/lib/cloudnvr-state
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+
+  web:
+    image: ghcr.io/razer97427/cloudnvr-web:latest
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_SITE_URL: ${PUBLIC_URL:-http://localhost:8080}
+      TZ: ${TZ:-UTC}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.20.1
+    restart: unless-stopped
+    depends_on:
+      - cloud
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${MEDIA_WEBRTC_HOSTS:-}
+    volumes:
+      - ./deploy/mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "${MEDIA_RTSP_PORT:-8554}:8554"
+      - "${MEDIA_WEBRTC_UDP_PORT:-8189}:8189/udp"
+      - "${MEDIA_WEBRTC_TCP_PORT:-8189}:8189/tcp"
+
+volumes:
+  mariadb-data:
+  cloud-recordings:
+  cloud-state:

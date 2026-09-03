@@ -1,0 +1,26 @@
+logLevel: info
+
+authMethod: http
+authHTTPAddress: http://cloud:8080/internal/media/auth
+
+rtsp: true
+rtspAddress: :8554
+rtspTransports: [tcp]
+
+hls: true
+hlsAddress: :8888
+hlsAlwaysRemux: false
+
+webrtc: true
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+
+api: false
+
+rtmp: false
+srt: false
+moq: false
+
+paths:
+  all_others:

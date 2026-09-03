@@ -1,0 +1,9 @@
+.git
+.env
+.data
+bin
+coverage.out
+web/node_modules
+web/.vinext
+web/.wrangler
+web/dist

@@ -1,0 +1,15 @@
+{
+  "name": "CloudNVR",
+  "short_name": "CloudNVR",
+  "description": "Accès sécurisé à votre NVR cloud multi-sites.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f7f9",
+  "theme_color": "#102039",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
