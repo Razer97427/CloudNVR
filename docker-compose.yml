@@ -17,7 +17,11 @@ services:
       retries: 20
 
   cloud:
-    image: ghcr.io/razer97427/cloudnvr-cloud:latest
+    image: cloudnvr-cloud:local
+    pull_policy: build
+    build:
+      context: .
+      target: cloud
     restart: unless-stopped
     depends_on:
       mariadb:
@@ -53,7 +57,11 @@ services:
       - "${HTTP_PORT:-8080}:8080"
 
   web:
-    image: ghcr.io/razer97427/cloudnvr-web:latest
+    image: cloudnvr-web:local
+    pull_policy: build
+    build:
+      context: .
+      target: web
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_SITE_URL: ${PUBLIC_URL:-http://localhost:8080}

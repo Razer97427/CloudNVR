@@ -1,0 +1,8 @@
+services:
+  cloud:
+    image: ghcr.io/razer97427/cloudnvr-cloud:latest
+    pull_policy: always
+
+  web:
+    image: ghcr.io/razer97427/cloudnvr-web:latest
+    pull_policy: always

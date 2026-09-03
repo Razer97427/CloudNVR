@@ -134,12 +134,12 @@ openssl rand -base64 32
 
 Reporter la clé générée dans `CAMERA_ENCRYPTION_KEY` et choisir des mots de passe forts.
 
-### Construire depuis le clone local
+### Construire depuis le clone local — mode par défaut
 
 Si le dépôt est déjà cloné sur la machine, utiliser le fichier local :
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+docker compose up -d --build
 curl http://localhost:8080/health
 ```
 
@@ -153,7 +153,7 @@ Pour récupérer plus tard une modification du code et reconstruire :
 
 ```bash
 git pull
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+docker compose up -d --build
 ```
 
 Il n'est pas nécessaire de refaire `git clone` : le clonage ne se fait qu'une
@@ -161,11 +161,13 @@ fois.
 
 ### Utiliser les images préconstruites
 
-Le fichier principal reste destiné aux images GHCR :
+Le mode GHCR est volontairement séparé du mode local. Pour ignorer la
+construction disponible dans le fichier principal et utiliser uniquement les
+images préconstruites :
 
 ```bash
-docker compose pull
-docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.registry.yml pull
+docker compose -f docker-compose.yml -f docker-compose.registry.yml up -d --no-build
 ```
 
 Cette seconde méthode ne compile pas le code local et nécessite que les
