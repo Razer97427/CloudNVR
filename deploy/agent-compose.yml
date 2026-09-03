@@ -1,6 +1,7 @@
 services:
   agent:
-    image: ghcr.io/razer97427/cloudnvr-agent:latest
+    image: cloudnvr-agent:local
+    pull_policy: build
     build:
       context: ..
       target: agent

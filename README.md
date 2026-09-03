@@ -132,16 +132,44 @@ cp .env.example .env
 openssl rand -base64 32
 ```
 
-Reporter la clé générée dans `CAMERA_ENCRYPTION_KEY`, choisir des mots de passe forts, puis lancer :
+Reporter la clé générée dans `CAMERA_ENCRYPTION_KEY` et choisir des mots de passe forts.
+
+### Construire depuis le clone local
+
+Si le dépôt est déjà cloné sur la machine, utiliser le fichier local :
 
 ```bash
-docker compose up --build -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 curl http://localhost:8080/health
 ```
 
-Le clone complet construit tout localement. Après publication des paquets
-GHCR, `docker compose pull && docker compose up -d` permet aussi d'utiliser les
-images précompilées.
+Cette commande construit `cloudnvr-cloud:local` et `cloudnvr-web:local`
+directement avec le code présent dans le dossier. Elle n'essaie pas de
+télécharger les images applicatives CloudNVR depuis GHCR. Les images de base
+et les services tiers (Go, Node, Alpine, MariaDB et MediaMTX) sont seulement
+téléchargés s'ils ne sont pas déjà dans le cache Docker.
+
+Pour récupérer plus tard une modification du code et reconstruire :
+
+```bash
+git pull
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+```
+
+Il n'est pas nécessaire de refaire `git clone` : le clonage ne se fait qu'une
+fois.
+
+### Utiliser les images préconstruites
+
+Le fichier principal reste destiné aux images GHCR :
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Cette seconde méthode ne compile pas le code local et nécessite que les
+packages GHCR soient publics ou que Docker soit authentifié au registre.
 
 Ouvrir ensuite `PUBLIC_URL` dans le navigateur. L'interface demande la valeur de `ADMIN_API_KEY` et la conserve uniquement pendant la session du navigateur.
 
@@ -179,11 +207,16 @@ cp deploy/.env.example deploy/.env
 # compléter CLOUD_URL, SITE_ID, ENROLLMENT_TOKEN et AGENT_RECORDINGS_PATH
 ```
 
-Puis lancer :
+Puis lancer depuis le clone complet :
 
 ```bash
 docker compose -f deploy/agent-compose.yml up --build -d
 ```
+
+Ce fichier construit l'image `cloudnvr-agent:local` depuis le code du clone et
+n'essaie pas de télécharger l'image agent sur GHCR. Pour une installation ne
+contenant que les fichiers de déploiement, utiliser au contraire
+`deploy/agent-only`, qui télécharge l'image préconstruite.
 
 Le fichier Compose V2 lance deux conteneurs sur la machine locale : `agent` et `agent-media`. Ils forment ensemble l'agent CloudNVR V2. `agent-media` écoute le RTSP et la signalisation uniquement sur `127.0.0.1`; seul le transport WebRTC `8189` écoute sur le réseau.
 

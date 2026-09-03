@@ -1,0 +1,14 @@
+services:
+  cloud:
+    image: cloudnvr-cloud:local
+    pull_policy: build
+    build:
+      context: .
+      target: cloud
+
+  web:
+    image: cloudnvr-web:local
+    pull_policy: build
+    build:
+      context: .
+      target: web

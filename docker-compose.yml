@@ -18,9 +18,6 @@ services:
 
   cloud:
     image: ghcr.io/razer97427/cloudnvr-cloud:latest
-    build:
-      context: .
-      target: cloud
     restart: unless-stopped
     depends_on:
       mariadb:
@@ -57,9 +54,6 @@ services:
 
   web:
     image: ghcr.io/razer97427/cloudnvr-web:latest
-    build:
-      context: .
-      target: web
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_SITE_URL: ${PUBLIC_URL:-http://localhost:8080}
