@@ -36,6 +36,93 @@ Le lecteur reste intégré à l'interface CloudNVR du VPS. Seuls les petits mess
 
 Le flux local est indépendant du relais VPS : caméra → FFmpeg agent → MediaMTX agent. Un second relais lit ce restream local pour alimenter le VPS. Une coupure Internet n'arrête donc ni le direct local ni l'enregistrement local. Le chemin VPS reste actif pour le secours WebRTC/HLS et pour les clients qui ne peuvent pas joindre directement la maison.
 
+## Configuration complète des fichiers `.env`
+
+Il existe deux configurations indépendantes :
+
+- `/.env` à la racine configure CloudNVR, MariaDB et MediaMTX sur le VPS ;
+- `/deploy/.env` ou `/deploy/agent-only/.env` configure uniquement une machine agent.
+
+Ne copiez pas le `.env` du VPS sur l'agent. Les fichiers `.env` contiennent des
+secrets et sont ignorés par Git.
+
+### Variables du VPS — `/.env`
+
+| Variable | Défaut | Obligatoire | Description |
+|---|---:|:---:|---|
+| `MARIADB_DATABASE` | `cloudnvr` | non | Nom de la base MariaDB créée au premier démarrage. |
+| `MARIADB_USER` | `cloudnvr` | non | Utilisateur applicatif MariaDB. |
+| `MARIADB_PASSWORD` | aucun | oui | Mot de passe de l'utilisateur applicatif. Utilisez une valeur longue et aléatoire. |
+| `MARIADB_ROOT_PASSWORD` | aucun | oui | Mot de passe administrateur MariaDB, utilisé principalement pour l'initialisation et la maintenance. |
+| `ADMIN_API_KEY` | aucun | oui | Clé demandée par l'interface et par toutes les routes d'administration. Ce n'est ni le mot de passe MariaDB ni celui de MediaMTX. |
+| `CAMERA_ENCRYPTION_KEY` | aucun | oui | Clé AES servant à chiffrer les URL RTSP et mots de passe ONVIF dans MariaDB. Génération : `openssl rand -base64 32`. Elle doit être conservée définitivement. |
+| `PUBLIC_URL` | `http://localhost:8080` | production | URL publique complète de l'interface, par exemple `https://cloudnvr.example.com`. Elle sert aux liens PWA, cookies et redirections. |
+| `HTTP_PORT` | `8080` | non | Port TCP publié sur l'hôte pour l'interface et l'API. Le conteneur écoute toujours sur `8080`. |
+| `CLOUD_RECORDINGS_PATH` | volume `cloud-recordings` | non | Dossier hôte ou volume Docker où sont stockés les enregistrements réalisés par le cloud. Exemple : `/mnt/videos/cloudnvr`. |
+| `RECORDING_SEGMENT_TIME` | `1m` | non | Durée d'un segment MP4. Minimum `10s`. Une valeur courte fluidifie la lecture distante mais crée davantage de fichiers. |
+| `PLAYBACK_CACHE_TTL` | `6h` | non | Durée de conservation sur le VPS d'un segment temporairement demandé à un agent. Minimum `1m`. |
+| `PLAYBACK_CACHE_MAX_BYTES` | `10737418240` | non | Taille maximale du cache de lecture, en octets (10 Gio par défaut). Doit être supérieure ou égale à `AGENT_UPLOAD_MAX_BYTES`. |
+| `AGENT_UPLOAD_MAX_BYTES` | `2147483648` | non | Taille maximale acceptée pour un segment envoyé par un agent, en octets (2 Gio par défaut). |
+| `CLOUD_MIN_FREE_BYTES` | `5368709120` | non | Espace libre minimal conservé sur le stockage cloud. Les segments finalisés les plus anciens sont supprimés avant de passer sous ce seuil. `0` désactive cette protection. |
+| `TZ` | `UTC` | non | Fuseau horaire des conteneurs et de la hiérarchie des dossiers. Exemple : `Indian/Reunion`. |
+| `MEDIA_PUBLIC_RTSP_URL` | dérivé de `PUBLIC_URL` sur `8554` | distant | Adresse RTSP du VPS joignable par les agents, par exemple `rtsp://203.0.113.10:8554` ou une adresse VPN. Ne mettez pas `/camera-...` à la fin. |
+| `MEDIA_RTSP_PORT` | `8554` | non | Port TCP RTSP publié par MediaMTX sur le VPS. Il reçoit les flux de secours envoyés par les agents. |
+| `MEDIA_PUBLISH_USER` | `cloudnvr-agent` | non | Nom d'utilisateur autorisé à publier les flux des agents sur MediaMTX. |
+| `MEDIA_PUBLISH_PASSWORD` | `change-media-password` | oui en production | Mot de passe de publication RTSP agent → VPS. Il ne sert pas à ouvrir l'interface et ne correspond pas aux identifiants des caméras. |
+| `MEDIA_WEBRTC_HOSTS` | vide | accès externe | IP publique ou DNS annoncé comme candidat ICE par MediaMTX sur le VPS. Plusieurs valeurs peuvent être séparées par des virgules. |
+| `MEDIA_WEBRTC_UDP_PORT` | `8189` | non | Port UDP WebRTC publié sur le VPS. C'est le chemin prioritaire du secours VPS. |
+| `MEDIA_WEBRTC_TCP_PORT` | `8189` | non | Port TCP WebRTC publié sur le VPS lorsque l'UDP est bloqué. |
+
+Les tailles sont exprimées en octets : `1073741824` = 1 Gio. Les durées utilisent
+la syntaxe Go : `30s`, `1m`, `6h`, etc.
+
+### Variables de l'agent — `/deploy/.env`
+
+| Variable | Défaut Compose | Obligatoire | Description |
+|---|---:|:---:|---|
+| `CLOUD_URL` | aucun | oui | URL de l'interface/API du VPS, sans chemin final. En production, utilisez `https://...`. |
+| `SITE_ID` | aucun | oui | Identifiant UUID du site créé dans CloudNVR. Un agent ne peut appartenir qu'à un seul site. |
+| `ENROLLMENT_TOKEN` | vide | premier démarrage | Jeton à usage unique affiché lors de la création/réinstallation de l'agent. Il peut être retiré après l'enrôlement réussi. |
+| `AGENT_NAME` | `site-agent` | non | Nom technique affiché pour identifier la machine agent. |
+| `AGENT_POLL_INTERVAL` | `15s` | non | Fréquence de récupération de la configuration et d'envoi du heartbeat. Utilisez une durée strictement positive. |
+| `AGENT_INVENTORY_INTERVAL` | `1m` | non | Fréquence de synchronisation des fichiers ajoutés, modifiés ou supprimés. Minimum `15s`. |
+| `AGENT_FULL_INVENTORY_INTERVAL` | `6h` | non | Fréquence du contrôle intégral fichiers ↔ MariaDB. Doit être supérieure ou égale à `AGENT_INVENTORY_INTERVAL`. |
+| `AGENT_UPLOAD_MBPS` | `8` | non | Débit maximal en Mbit/s pour envoyer au VPS les segments demandés en lecture. `0` signifie illimité. |
+| `AGENT_UPLOAD_RETRIES` | `4` | non | Nombre de tentatives d'envoi d'un segment interrompu. Valeur comprise entre `1` et `20`. |
+| `AGENT_MIN_FREE_BYTES` | `2147483648` | non | Réserve minimale du stockage local (2 Gio par défaut). Les plus anciens segments finalisés sont supprimés si nécessaire. `0` désactive cette protection. |
+| `AGENT_ALLOW_INSECURE_HTTP` | `false` | non | Autorise un `CLOUD_URL` public en HTTP. Gardez `false` sur Internet. HTTP reste accepté automatiquement pour une IP privée ou `localhost`. |
+| `AGENT_RECORDINGS_PATH` | volume `agent-recordings` | non | Dossier de l'hôte monté dans le conteneur pour les enregistrements locaux. Exemple : `/mnt/video/cloudnvr-agent`. |
+| `RECORDING_SEGMENT_TIME` | `1m` | non | Durée des MP4 locaux. Minimum `10s`. Peut être différente de celle du VPS. |
+| `AGENT_WEBRTC_ENABLED` | `true` | non | Active MediaMTX local et le chemin WebRTC direct agent → navigateur. |
+| `AGENT_WEBRTC_HOSTS` | vide | accès direct externe | IP publique ou DNS de la connexion du site, annoncé aux navigateurs. Plusieurs valeurs peuvent être séparées par des virgules. |
+| `AGENT_WEBRTC_PORT` | `8189` | non | Port UDP/TCP WebRTC local. Redirigez au minimum `8189/UDP` de la box vers la machine agent. |
+| `AGENT_WEBRTC_WORKERS` | `4` | non | Nombre de négociations WebRTC traitées simultanément. Valeur comprise entre `1` et `16`. |
+| `TZ` | `UTC` | non | Fuseau utilisé pour les dates et le classement des segments. Utilisez le même fuseau sur le VPS et l'agent. |
+
+### Variables internes aux conteneurs
+
+Le Compose configure aussi les variables suivantes. Il n'est normalement pas
+nécessaire de les mettre dans `.env`, car leurs adresses correspondent aux noms
+et volumes internes Docker :
+
+| Service | Variables internes | Rôle |
+|---|---|---|
+| Cloud | `HTTP_ADDR`, `DATABASE_DSN`, `WEB_UPSTREAM` | Adresse d'écoute, connexion MariaDB et proxy vers l'interface web. |
+| Cloud/Media | `MEDIA_WEBRTC_UPSTREAM`, `MEDIA_HLS_UPSTREAM`, `MEDIA_API_URL`, `MEDIA_INTERNAL_RTSP_URL` | Communications privées entre l'API et MediaMTX du VPS. |
+| Cloud/Stockage | `RECORDINGS_PATH`, `CLOUD_STORAGE_ID_FILE` | Chemins internes du volume vidéo et de son identité persistante. |
+| Web | `NEXT_PUBLIC_SITE_URL` | URL publique transmise au build/serveur web ; le Compose reprend `PUBLIC_URL`. |
+| Agent/Media | `AGENT_MEDIA_RTSP_URL`, `AGENT_MEDIA_WEBRTC_URL` | RTSP local `127.0.0.1:8555` et signalisation locale `127.0.0.1:8890`. Ces ports ne doivent pas être exposés sur Internet. |
+| Agent/État | `AGENT_STATE_FILE`, `AGENT_CONFIG_CACHE_FILE`, `AGENT_INVENTORY_STATE_FILE`, `AGENT_STORAGE_ID_FILE`, `RECORDINGS_PATH` | Identité de l'agent, configuration hors ligne, inventaire et contrôle du montage. Ces chemins restent dans les volumes Docker. |
+| MediaMTX | `MTX_WEBRTCADDITIONALHOSTS`, `MTX_WEBRTCLOCALUDPADDRESS`, `MTX_WEBRTCLOCALTCPADDRESS` | Valeurs MediaMTX générées depuis les variables WebRTC publiques précédentes. |
+
+Points importants :
+
+- changer `CAMERA_ENCRYPTION_KEY` après avoir ajouté des caméras rend leurs secrets existants illisibles ;
+- changer `MARIADB_PASSWORD` dans `.env` ne change pas automatiquement le mot de passe d'un volume MariaDB déjà initialisé ;
+- `CLOUD_RECORDINGS_PATH` et `AGENT_RECORDINGS_PATH` doivent être accessibles à l'UID `10001` ;
+- changer `MEDIA_PUBLISH_PASSWORD` nécessite de recréer le conteneur cloud, puis l'agent récupère automatiquement ses nouvelles URL de publication ;
+- supprimer le volume `agent-state` oblige à générer un nouveau `ENROLLMENT_TOKEN`.
+
 ## Démarrage du cloud
 
 Prérequis : Docker avec Docker Compose.
@@ -85,24 +172,11 @@ La réponse contient `SITE_ID` et `ENROLLMENT_TOKEN`. Ce jeton d'enrôlement est
 
 ## Installer l'agent sur le site
 
-Sur la machine locale, créer un fichier `.env` dans le dossier `deploy` :
+Sur la machine locale, copier le modèle complet dans le dossier `deploy` :
 
-```dotenv
-CLOUD_URL=https://nvr.example.com
-SITE_ID=<id retourné lors de la création du site>
-ENROLLMENT_TOKEN=<jeton retourné lors de la création du site>
-AGENT_NAME=agent-maison
-# Limite les lectures distantes à 8 Mbit/s (0 = illimité).
-AGENT_UPLOAD_MBPS=8
-# Une URL HTTP publique est refusée par défaut. Garder false sur un VPS.
-AGENT_ALLOW_INSECURE_HTTP=false
-# Exemple de stockage local ou de partage QNAP déjà monté sur l'hôte.
-AGENT_RECORDINGS_PATH=/mnt/qnap/cloudnvr
-# Active MediaMTX et le WebRTC direct dans le déploiement V2.
-AGENT_WEBRTC_ENABLED=true
-# IP publique ou DNS public de la maison annoncé comme candidat ICE.
-AGENT_WEBRTC_HOSTS=198.51.100.20
-AGENT_WEBRTC_PORT=8189
+```bash
+cp deploy/.env.example deploy/.env
+# compléter CLOUD_URL, SITE_ID, ENROLLMENT_TOKEN et AGENT_RECORDINGS_PATH
 ```
 
 Puis lancer :
@@ -121,19 +195,8 @@ L'agent conserve aussi une copie protégée de la dernière configuration. Aprè
 
 Le dossier d'enregistrement reçoit un identifiant persistant. Si un montage QNAP disparaît, l'agent met les enregistreurs en pause et ne vide pas la timeline. Ils redémarrent automatiquement lorsque le même montage revient.
 
-Variables utiles de l'agent :
-
-- `RECORDING_SEGMENT_TIME=1m` : granularité de lecture et de transfert ;
-- `AGENT_INVENTORY_INTERVAL=1m` : fréquence d'envoi des ajouts, modifications et suppressions ;
-- `AGENT_FULL_INVENTORY_INTERVAL=6h` : contrôle intégral périodique de la timeline ;
-- `AGENT_UPLOAD_MBPS=8` : débit maximal d'une lecture distante ;
-- `AGENT_UPLOAD_RETRIES=4` : reprises automatiques d'un transfert interrompu ;
-- `AGENT_MIN_FREE_BYTES=2147483648` : réserve minimale avant suppression des plus anciens segments ;
-- `AGENT_RECORDINGS_PATH=/mnt/qnap/cloudnvr` : point de montage hôte exposé au conteneur.
-- `AGENT_WEBRTC_ENABLED=true` : active la V2 WebRTC locale ;
-- `AGENT_WEBRTC_HOSTS=<IP publique ou DNS>` : candidat ICE joignable depuis Internet ;
-- `AGENT_WEBRTC_PORT=8189` : port UDP/TCP à rediriger vers l'agent ;
-- `AGENT_WEBRTC_WORKERS=4` : nombre de requêtes de signalisation simultanées.
+Toutes les variables, limites et valeurs par défaut sont détaillées dans
+**Configuration complète des fichiers `.env`** plus haut.
 
 ### Installer seulement l'agent
 
